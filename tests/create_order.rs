@@ -1,4 +1,4 @@
-use catalog_order_service::{
+use micro_product_service::{
     database,
     grpc::orders::OrderGrpc,
     proto::orders::{CreateOrderRequest, OrderItemRequest, order_service_server::OrderService},

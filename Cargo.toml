@@ -3,6 +3,9 @@ name = "micro-product-service"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "micro_product_service"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tonic = "0.14"

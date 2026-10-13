@@ -1,4 +1,4 @@
-use catalog_order_service::{config::Config, database, grpc, proto};
+use micro_product_service::{config::Config, database, grpc, proto};
 use proto::orders::order_service_server::OrderServiceServer;
 use proto::{
     category_service_server::CategoryServiceServer,
