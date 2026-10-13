@@ -87,7 +87,7 @@ impl OrderGrpc {
         lim: i64,
         off: i64,
     ) -> Result<(Vec<Order>, bool), Status> {
-        let rows=sqlx::query_as::<_,(uuid::Uuid,uuid::Uuid,String,i64,String,serde_json::Value,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,user_id,status::text,total_minor,currency,shipping_address,created_at,updated_at FROM orders WHERE ($1::uuid IS NULL OR user_id=$1) AND ($2::order_status IS NULL OR status=$2) AND ($3::timestamptz IS NULL OR created_at >= $3) AND ($4::timestamptz IS NULL OR created_at <= $4) ORDER BY created_at DESC,id LIMIT $5 OFFSET $6").bind(user).bind(status.map(|s|status_text(s).to_string())).bind(after).bind(before).bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
+        let rows=sqlx::query_as::<_,(uuid::Uuid,uuid::Uuid,String,i64,String,serde_json::Value,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,user_id,status::text,total_minor,currency,shipping_address,created_at,updated_at FROM orders WHERE ($1::uuid IS NULL OR user_id=$1) AND ($2::text IS NULL OR status::text=$2) AND ($3::timestamptz IS NULL OR created_at >= $3) AND ($4::timestamptz IS NULL OR created_at <= $4) ORDER BY created_at DESC,id LIMIT $5 OFFSET $6").bind(user).bind(status.map(|s|status_text(s).to_string())).bind(after).bind(before).bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
         let more = rows.len() as i64 > lim;
         let mut result = Vec::new();
         for r in rows.into_iter().take(lim as usize) {
