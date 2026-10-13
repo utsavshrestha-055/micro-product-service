@@ -12,10 +12,10 @@ Default local listener: `127.0.0.1:50052`. Package/API definitions live in [`pro
 | --- | --- |
 | `catalog.CategoryService` | `CreateCategory`, `GetCategory`, `ListCategories`, `UpdateCategory`, `DeleteCategory` |
 | `catalog.ProductService` | `CreateProduct`, `GetProduct`, `ListProducts`, `UpdateProduct`, `DeleteProduct`, `CreateProductDetails`, `GetProductDetails`, `UpdateProductDetails`, `DeleteProductDetails`, `GetProductPage` |
-| `catalog.ProductImageService` | `CreateProductImage`, `GetProductImage`, `ListProductImages`, `UpdateProductImage`, `DeleteProductImage` |
+| `catalog.ProductImageService` | `CreateProductImage`, `GetProductImage`, `ListProductImages`, `UpdateProductImage`, `DeleteProductImage`, `GetProductImageData` |
 | `orders.OrderService` | `CreateOrder`, `GetOrder`, `ListOrders`, `CancelOrder`, `GetOrderAdmin`, `ListOrdersAdmin`, `UpdateOrderStatus` |
 
-`GetProductPage` returns product, optional product details, its category ancestry, and images. Product image URLs and metadata are stored; this service does not accept binary uploads. When the first image is added it becomes primary automatically. Setting an image primary transfers primary status atomically; deleting a product's only image is rejected to preserve a primary image whenever images exist.
+`GetProductPage` returns product, optional product details, its category ancestry, and image metadata. Product images can be stored as binary data in PostgreSQL (`BYTEA`) with their content type, or represented by an external HTTP(S) URL. Binary image bytes are returned separately through `GetProductImageData` so product listings do not include image payloads. Binary uploads support JPEG, PNG, and WebP up to 5 MiB. When the first image is added it becomes primary automatically. Setting an image primary transfers primary status atomically; deleting a product's only image is rejected to preserve a primary image whenever images exist.
 
 All list APIs are paginated using `page_size` and an offset-valued `page_token`; page sizes default to 25 and are capped at 100. Products support category, active, price bounds, and name search filters. Order list APIs support status and date bounds; admin listing also accepts user ID.
 
@@ -38,6 +38,7 @@ grpcurl -plaintext -d '{"name":"Books","slug":"books","description":"Books","is_
 grpcurl -plaintext -d '{"page_size":20,"name_search":"book"}' localhost:50052 catalog.ProductService/ListProducts
 grpcurl -plaintext -d '{"id":"PRODUCT_UUID"}' localhost:50052 catalog.ProductService/GetProductPage
 grpcurl -plaintext -d '{"product_id":"PRODUCT_UUID","url":"https://cdn.example.test/book.jpg","alt_text":"Book cover","is_primary":true}' localhost:50052 catalog.ProductImageService/CreateProductImage
+grpcurl -plaintext -d '{"id":"IMAGE_UUID"}' localhost:50052 catalog.ProductImageService/GetProductImageData
 grpcurl -plaintext -d '{"user_id":"USER_UUID","idempotency_key":"checkout-2026-001","currency":"USD","shipping_address_json":"{\"line1\":\"1 Main St\",\"city\":\"Gotham\"}","items":[{"product_id":"PRODUCT_UUID","quantity":2}]}' localhost:50052 orders.OrderService/CreateOrder
 grpcurl -plaintext -d '{"id":"ORDER_UUID","user_id":"USER_UUID"}' localhost:50052 orders.OrderService/GetOrder
 grpcurl -plaintext -d '{"id":"ORDER_UUID","status":"CONFIRMED","changed_by":"GATEWAY_ACTOR_ID","note":"payment confirmed"}' localhost:50052 orders.OrderService/UpdateOrderStatus
@@ -74,11 +75,11 @@ In production, configure the process supervisor or container platform to collect
 
 ## Configuration and migrations
 
-Copy `.env.example` to `.env`, set `DATABASE_URL`, and follow [HostMe.md](HostMe.md) for local setup and hosting. Apply migrations with:
+Copy `.env.example` to `.env` and set the required `DATABASE_URL`. Other settings have defaults and are optional. Follow [HostMe.md](HostMe.md) for local setup and hosting. Apply all pending migrations before starting the updated service:
 
 ```sh
 cargo install sqlx-cli --no-default-features --features rustls,postgres
 sqlx migrate run
 ```
 
-Environment variables: `APP_NAME`, `GRPC_ADDR` (default `127.0.0.1:50052`), `DATABASE_URL`, `GRPC_REFLECTION` (default `true`), and `RUST_LOG`.
+Required environment variable: `DATABASE_URL`. Optional variables are `APP_NAME` (default `catalog-order-service`), `GRPC_ADDR` (default `127.0.0.1:50052`), `GRPC_REFLECTION` (default `true`), and `RUST_LOG` (controls log verbosity). No extra environment variable is needed for binary image storage.

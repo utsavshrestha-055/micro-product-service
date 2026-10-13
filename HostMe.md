@@ -10,13 +10,13 @@
 ## Local setup
 
 1. Copy `.env.example` to `.env`.
-2. Set `DATABASE_URL` to the development database. For this project, the requested local connection is:
+2. Set the required `DATABASE_URL` to a PostgreSQL database reachable from the service. For example:
 
    ```dotenv
-   DATABASE_URL=postgres://batman:iron@psql.batman:5432/product_service
+   DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/product_service
    ```
 
-   Keep `.env` out of source control; `.env.example` deliberately contains only a placeholder. Ensure the `product_service` database exists and the role can create the schema objects used by the migration.
+   Keep `.env` out of source control. Ensure the database exists and the migration role can create the schema objects. Optional runtime settings and their defaults are listed in `.env.example`.
 
 3. Install SQLx CLI if needed and apply the schema:
 
@@ -37,6 +37,7 @@
 
    ```sh
    grpcurl -plaintext localhost:50052 list
+   grpcurl -plaintext localhost:50052 describe catalog.ProductImageService
    grpcurl -plaintext localhost:50052 describe orders.OrderService
    ```
 
@@ -49,10 +50,12 @@
    cargo build --release
    ```
 
-3. Provide `APP_NAME`, `GRPC_ADDR=0.0.0.0:50052`, `DATABASE_URL`, `GRPC_REFLECTION=false`, and `RUST_LOG` through the hosting platform's secret/configuration manager. Do not bake credentials into the image or commit `.env`.
-4. Run `sqlx migrate run` as a controlled deployment step before starting/restarting the application. Back up PostgreSQL and rehearse schema upgrades against a staging copy.
+3. Set `DATABASE_URL` and `GRPC_ADDR=0.0.0.0:50052` in the hosting platform; the listener must bind to the container interface. Optionally set `APP_NAME`, `GRPC_REFLECTION=false`, and `RUST_LOG`. Store database credentials in the platform's secret manager; do not bake credentials into the image or commit `.env`.
+4. Run `sqlx migrate run` as a controlled deployment step before starting/restarting the application. This applies the product image storage migration, which adds `image_data` (`BYTEA`) and `content_type` columns to `product_images`. Back up PostgreSQL and rehearse schema upgrades against a staging copy.
 5. Run `target/release/catalog-order-service` under a supervisor or container orchestrator with restart policy and health monitoring. Keep the gRPC port private; route gateway traffic over a protected private network or terminate TLS at a trusted gRPC-capable proxy.
 6. Restrict admin order RPC access at the gateway. This service treats all callers as trusted and does not authenticate or authorize them.
+
+Uploaded JPEG, PNG, and WebP images up to 5 MiB are stored in PostgreSQL by the product service. The admin gateway sends the bytes through gRPC and serves retrieved image data to browser clients; no image filesystem or object-storage environment setting is required. Keep the gRPC port private and expose image retrieval through an appropriately protected or public gateway route for the consuming application.
 
 The `orders.user_id` column intentionally has no foreign key to the separate user service. Orders and their user IDs remain in this database if a user is later deleted elsewhere.
 
