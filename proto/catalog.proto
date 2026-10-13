@@ -1,0 +1,52 @@
+syntax = "proto3";
+package catalog;
+
+service CategoryService {
+  rpc CreateCategory(CategoryInput) returns (CategoryResponse);
+  rpc GetCategory(CategoryId) returns (CategoryResponse);
+  rpc ListCategories(PageRequest) returns (CategoryList);
+  rpc UpdateCategory(CategoryInput) returns (CategoryResponse);
+  rpc DeleteCategory(CategoryId) returns (OperationResponse);
+}
+service ProductService {
+  rpc CreateProduct(ProductInput) returns (ProductResponse);
+  rpc GetProduct(ProductId) returns (ProductResponse);
+  rpc ListProducts(ProductListRequest) returns (ProductList);
+  rpc UpdateProduct(ProductInput) returns (ProductResponse);
+  rpc DeleteProduct(ProductId) returns (OperationResponse);
+  rpc CreateProductDetails(ProductDetailsInput) returns (ProductDetailsResponse);
+  rpc GetProductDetails(ProductId) returns (ProductDetailsResponse);
+  rpc UpdateProductDetails(ProductDetailsInput) returns (ProductDetailsResponse);
+  rpc DeleteProductDetails(ProductId) returns (OperationResponse);
+  rpc GetProductPage(ProductId) returns (ProductPageResponse);
+}
+service ProductImageService {
+  rpc CreateProductImage(ProductImageInput) returns (ProductImageResponse);
+  rpc GetProductImage(ImageId) returns (ProductImageResponse);
+  rpc ListProductImages(ProductImageListRequest) returns (ProductImageList);
+  rpc UpdateProductImage(ProductImageInput) returns (ProductImageResponse);
+  rpc DeleteProductImage(ImageId) returns (OperationResponse);
+}
+message PageRequest { int32 page_size = 1; string page_token = 2; }
+message CategoryId { string id = 1; }
+message ProductId { string id = 1; }
+message ImageId { string id = 1; }
+message OperationResponse { bool success = 1; }
+message CategoryInput { string id = 1; string name = 2; string slug = 3; string description = 4; string parent_id = 5; bool is_active = 6; }
+message Category { string id = 1; string name = 2; string slug = 3; string description = 4; string parent_id = 5; bool is_active = 6; string created_at = 7; string updated_at = 8; }
+message CategoryResponse { Category category = 1; }
+message CategoryList { repeated Category categories = 1; string next_page_token = 2; }
+message ProductInput { string id = 1; string category_id = 2; string name = 3; string slug = 4; string sku = 5; string short_description = 6; int64 price_minor = 7; string currency = 8; int64 stock_quantity = 9; bool is_active = 10; }
+message Product { string id = 1; string category_id = 2; string name = 3; string slug = 4; string sku = 5; string short_description = 6; int64 price_minor = 7; string currency = 8; int64 stock_quantity = 9; bool is_active = 10; string created_at = 11; string updated_at = 12; }
+message ProductResponse { Product product = 1; }
+message ProductListRequest { int32 page_size = 1; string page_token = 2; string category_id = 3; optional bool is_active = 4; optional int64 min_price_minor = 5; optional int64 max_price_minor = 6; string name_search = 7; }
+message ProductList { repeated Product products = 1; string next_page_token = 2; }
+message ProductDetailsInput { string product_id = 1; string long_description = 2; string specs_json = 3; string brand = 4; string weight = 5; string dimensions_json = 6; string seo_title = 7; string meta_description = 8; repeated string tags = 9; }
+message ProductDetails { string product_id = 1; string long_description = 2; string specs_json = 3; string brand = 4; string weight = 5; string dimensions_json = 6; string seo_title = 7; string meta_description = 8; repeated string tags = 9; }
+message ProductDetailsResponse { ProductDetails details = 1; }
+message ProductImageInput { string id = 1; string product_id = 2; string url = 3; string alt_text = 4; int32 sort_order = 5; bool is_primary = 6; }
+message ProductImage { string id = 1; string product_id = 2; string url = 3; string alt_text = 4; int32 sort_order = 5; bool is_primary = 6; string created_at = 7; string updated_at = 8; }
+message ProductImageResponse { ProductImage image = 1; }
+message ProductImageListRequest { string product_id = 1; int32 page_size = 2; string page_token = 3; }
+message ProductImageList { repeated ProductImage images = 1; string next_page_token = 2; }
+message ProductPageResponse { Product product = 1; ProductDetails details = 2; repeated Category category_parent_path = 3; repeated ProductImage images = 4; }
