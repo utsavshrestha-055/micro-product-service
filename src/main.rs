@@ -34,9 +34,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(ProductServiceServer::new(grpc::products::ProductGrpc::new(
             pool.clone(),
         )))
-        .add_service(ProductImageServiceServer::new(
-            grpc::images::ImageGrpc::new(pool.clone()),
-        ))
+        .add_service(
+            ProductImageServiceServer::new(grpc::images::ImageGrpc::new(pool.clone()))
+                .max_decoding_message_size(6 * 1024 * 1024)
+                .max_encoding_message_size(6 * 1024 * 1024),
+        )
         .add_service(OrderServiceServer::new(grpc::orders::OrderGrpc::new(pool)))
         .serve(config.grpc_addr)
         .await?;
