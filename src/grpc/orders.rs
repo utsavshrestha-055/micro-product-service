@@ -210,7 +210,7 @@ impl OrderService for OrderGrpc {
             }));
         }
         let ids: Vec<uuid::Uuid> = quantities.keys().copied().collect();
-        let rows=sqlx::query_as::<_,(uuid::Uuid,String,String,i64,String,i64,bool)>("SELECT id,name,sku,price_minor,currency,stock_quantity,is_active FROM products WHERE id=ANY($1) AND deleted_at IS NULL ORDER BY id FOR UPDATE").bind(&ids).fetch_all(&mut *tx).await.map_err(errors::db)?;
+        let rows=sqlx::query_as::<_,(uuid::Uuid,String,String,i64,String,i64,bool)>("SELECT id,name,sku,price_minor,currency,stock_quantity,is_active FROM products WHERE id=ANY($1) ORDER BY id FOR UPDATE").bind(&ids).fetch_all(&mut *tx).await.map_err(errors::db)?;
         if rows.len() != ids.len() {
             return Err(Status::not_found("one or more products not found"));
         }

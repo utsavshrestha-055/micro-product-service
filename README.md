@@ -52,7 +52,7 @@ Customer `GetOrder`, `ListOrders`, and `CancelOrder` scope queries by both order
 - `CreateOrder` uses one transaction, locks products in UUID order, checks active status and stock, decrements stock, snapshots name/SKU/price, stores the order and initial history row, and uses a per-user idempotency key.
 - Cancelling a pending or confirmed order restores item stock in the same transaction. Status updates record history.
 - Allowed transitions: `PENDING -> CONFIRMED/CANCELLED`, `CONFIRMED -> PAID/CANCELLED`, `PAID -> SHIPPED/REFUNDED`, `SHIPPED -> DELIVERED`, `DELIVERED -> REFUNDED`. Terminal statuses have no outgoing transitions.
-- Products and categories are soft deleted. Category deletion fails while it has active products or children. Orders are never deleted.
+- Products and categories are hard deleted. Category deletion fails while it has products or children. Orders are never deleted.
 - Database constraints enforce unique slugs/SKUs/idempotency keys and at most one primary image per product.
 
 ## Logging

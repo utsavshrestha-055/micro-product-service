@@ -69,7 +69,7 @@ impl ProductService for ProductGrpc {
     ) -> Result<Response<ProductResponse>, Status> {
         let x = q.into_inner();
         let c = validate(&x)?;
-        let r=sqlx::query_as::<_,Row>("INSERT INTO products(category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active) SELECT $1,$2,$3,$4,$5,$6,upper($7),$8,$9 WHERE EXISTS(SELECT 1 FROM categories WHERE id=$1 AND deleted_at IS NULL) RETURNING id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at").bind(c).bind(x.name.trim()).bind(x.slug.trim()).bind(x.sku.trim()).bind(x.short_description).bind(x.price_minor).bind(x.currency).bind(x.stock_quantity).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::failed_precondition("category is missing or deleted"))?;
+        let r=sqlx::query_as::<_,Row>("INSERT INTO products(category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active) SELECT $1,$2,$3,$4,$5,$6,upper($7),$8,$9 WHERE EXISTS(SELECT 1 FROM categories WHERE id=$1) RETURNING id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at").bind(c).bind(x.name.trim()).bind(x.slug.trim()).bind(x.sku.trim()).bind(x.short_description).bind(x.price_minor).bind(x.currency).bind(x.stock_quantity).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::failed_precondition("category not found"))?;
         Ok(Response::new(ProductResponse {
             product: Some(product(r)),
         }))
@@ -79,7 +79,7 @@ impl ProductService for ProductGrpc {
         q: Request<ProductId>,
     ) -> Result<Response<ProductResponse>, Status> {
         let id = parse_uuid(&q.into_inner().id, "id")?;
-        let r=sqlx::query_as::<_,Row>("SELECT id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at FROM products WHERE id=$1 AND deleted_at IS NULL").bind(id).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("product not found"))?;
+        let r=sqlx::query_as::<_,Row>("SELECT id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at FROM products WHERE id=$1").bind(id).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("product not found"))?;
         Ok(Response::new(ProductResponse {
             product: Some(product(r)),
         }))
@@ -102,7 +102,7 @@ impl ProductService for ProductGrpc {
         {
             return Err(errors::invalid("invalid price range"));
         }
-        let rows=sqlx::query_as::<_,Row>("SELECT id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at FROM products WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR category_id=$1) AND ($2::bool IS NULL OR is_active=$2) AND ($3::bigint IS NULL OR price_minor >= $3) AND ($4::bigint IS NULL OR price_minor <= $4) AND ($5='' OR name ILIKE '%' || $5 || '%') ORDER BY created_at DESC,id LIMIT $6 OFFSET $7").bind(cat).bind(x.is_active).bind(x.min_price_minor).bind(x.max_price_minor).bind(x.name_search).bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
+        let rows=sqlx::query_as::<_,Row>("SELECT id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at FROM products WHERE ($1::uuid IS NULL OR category_id=$1) AND ($2::bool IS NULL OR is_active=$2) AND ($3::bigint IS NULL OR price_minor >= $3) AND ($4::bigint IS NULL OR price_minor <= $4) AND ($5='' OR name ILIKE '%' || $5 || '%') ORDER BY created_at DESC,id LIMIT $6 OFFSET $7").bind(cat).bind(x.is_active).bind(x.min_price_minor).bind(x.max_price_minor).bind(x.name_search).bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
         let more = rows.len() as i64 > lim;
         Ok(Response::new(ProductList {
             products: rows.into_iter().take(lim as usize).map(product).collect(),
@@ -120,7 +120,7 @@ impl ProductService for ProductGrpc {
         let x = q.into_inner();
         let id = parse_uuid(&x.id, "id")?;
         let c = validate(&x)?;
-        let r=sqlx::query_as::<_,Row>("UPDATE products SET category_id=$2,name=$3,slug=$4,sku=$5,short_description=$6,price_minor=$7,currency=upper($8),stock_quantity=$9,is_active=$10 WHERE id=$1 AND deleted_at IS NULL RETURNING id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at").bind(id).bind(c).bind(x.name.trim()).bind(x.slug.trim()).bind(x.sku.trim()).bind(x.short_description).bind(x.price_minor).bind(x.currency).bind(x.stock_quantity).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("product not found"))?;
+        let r=sqlx::query_as::<_,Row>("UPDATE products SET category_id=$2,name=$3,slug=$4,sku=$5,short_description=$6,price_minor=$7,currency=upper($8),stock_quantity=$9,is_active=$10 WHERE id=$1 RETURNING id,category_id,name,slug,sku,short_description,price_minor,currency,stock_quantity,is_active,created_at,updated_at").bind(id).bind(c).bind(x.name.trim()).bind(x.slug.trim()).bind(x.sku.trim()).bind(x.short_description).bind(x.price_minor).bind(x.currency).bind(x.stock_quantity).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("product not found"))?;
         Ok(Response::new(ProductResponse {
             product: Some(product(r)),
         }))
@@ -130,7 +130,7 @@ impl ProductService for ProductGrpc {
         q: Request<ProductId>,
     ) -> Result<Response<OperationResponse>, Status> {
         let id = parse_uuid(&q.into_inner().id, "id")?;
-        let r=sqlx::query("UPDATE products SET deleted_at=now(),is_active=false WHERE id=$1 AND deleted_at IS NULL").bind(id).execute(&self.pool).await.map_err(errors::db)?;
+        let r=sqlx::query("DELETE FROM products WHERE id=$1").bind(id).execute(&self.pool).await.map_err(errors::db)?;
         if r.rows_affected() == 0 {
             return Err(Status::not_found("product not found"));
         }
@@ -239,7 +239,7 @@ impl ProductService for ProductGrpc {
         let mut cid = Some(parse_uuid(&p.category_id, "category_id")?);
         for _ in 0..64 {
             let Some(cur) = cid else { break };
-            let row=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories WHERE id=$1 AND deleted_at IS NULL").bind(cur).fetch_optional(&self.pool).await.map_err(errors::db)?;
+            let row=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories WHERE id=$1").bind(cur).fetch_optional(&self.pool).await.map_err(errors::db)?;
             let Some(row) = row else { break };
             cid = row.4;
             path.push(Category {

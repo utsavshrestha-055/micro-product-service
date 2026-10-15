@@ -3,20 +3,20 @@ CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger LANGUAGE plpgsql AS 
 CREATE TABLE categories (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, slug text NOT NULL UNIQUE,
  description text NOT NULL DEFAULT '', parent_id uuid REFERENCES categories(id), is_active boolean NOT NULL DEFAULT true,
- created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), deleted_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  CHECK(parent_id IS NULL OR parent_id <> id)
 );
-CREATE INDEX categories_parent_idx ON categories(parent_id) WHERE deleted_at IS NULL;
+CREATE INDEX categories_parent_idx ON categories(parent_id);
 CREATE TRIGGER categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TABLE products (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), category_id uuid NOT NULL REFERENCES categories(id), name text NOT NULL,
  slug text NOT NULL UNIQUE, sku text NOT NULL UNIQUE, short_description text NOT NULL DEFAULT '', price_minor bigint NOT NULL CHECK(price_minor >= 0),
  currency char(3) NOT NULL, stock_quantity bigint NOT NULL DEFAULT 0 CHECK(stock_quantity >= 0), is_active boolean NOT NULL DEFAULT true,
- created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), deleted_at timestamptz
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX products_category_idx ON products(category_id) WHERE deleted_at IS NULL;
-CREATE INDEX products_active_price_idx ON products(is_active, price_minor) WHERE deleted_at IS NULL;
-CREATE INDEX products_name_search_idx ON products USING gin(to_tsvector('simple', name)) WHERE deleted_at IS NULL;
+CREATE INDEX products_category_idx ON products(category_id);
+CREATE INDEX products_active_price_idx ON products(is_active, price_minor);
+CREATE INDEX products_name_search_idx ON products USING gin(to_tsvector('simple', name));
 CREATE TRIGGER products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TABLE product_details (
  product_id uuid PRIMARY KEY REFERENCES products(id), long_description text NOT NULL DEFAULT '', specs jsonb NOT NULL DEFAULT '{}'::jsonb,

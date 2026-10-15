@@ -66,7 +66,7 @@ impl CategoryService for CategoryGrpc {
         q: Request<CategoryId>,
     ) -> Result<Response<CategoryResponse>, Status> {
         let id = parse_uuid(&q.into_inner().id, "id")?;
-        let r=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories WHERE id=$1 AND deleted_at IS NULL").bind(id).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("category not found"))?;
+        let r=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories WHERE id=$1").bind(id).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("category not found"))?;
         Ok(Response::new(CategoryResponse {
             category: Some(map(r)),
         }))
@@ -78,7 +78,7 @@ impl CategoryService for CategoryGrpc {
         let x = q.into_inner();
         let lim = page_size(x.page_size);
         let off = page_offset(&x.page_token)?;
-        let rows=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories WHERE deleted_at IS NULL ORDER BY name LIMIT $1 OFFSET $2").bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
+        let rows=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("SELECT id,name,slug,description,parent_id,is_active,created_at,updated_at FROM categories ORDER BY name LIMIT $1 OFFSET $2").bind(lim+1).bind(off).fetch_all(&self.pool).await.map_err(errors::db)?;
         let more = rows.len() as i64 > lim;
         let categories = rows.into_iter().take(lim as usize).map(map).collect();
         Ok(Response::new(CategoryList {
@@ -108,13 +108,13 @@ impl CategoryService for CategoryGrpc {
             return Err(errors::invalid("category cannot be its own parent"));
         }
         if let Some(parent_id) = parent {
-            let cycle: bool = sqlx::query_scalar("WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM categories WHERE id=$1 AND deleted_at IS NULL UNION ALL SELECT c.id,c.parent_id FROM categories c JOIN ancestors a ON c.id=a.parent_id WHERE c.deleted_at IS NULL) SELECT EXISTS(SELECT 1 FROM ancestors WHERE id=$2)")
+            let cycle: bool = sqlx::query_scalar("WITH RECURSIVE ancestors(id,parent_id) AS (SELECT id,parent_id FROM categories WHERE id=$1 UNION ALL SELECT c.id,c.parent_id FROM categories c JOIN ancestors a ON c.id=a.parent_id) SELECT EXISTS(SELECT 1 FROM ancestors WHERE id=$2)")
                 .bind(parent_id).bind(id).fetch_one(&self.pool).await.map_err(errors::db)?;
             if cycle {
                 return Err(errors::invalid("category parent would create a cycle"));
             }
         }
-        let r=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("UPDATE categories SET name=$2,slug=$3,description=$4,parent_id=$5,is_active=$6 WHERE id=$1 AND deleted_at IS NULL RETURNING id,name,slug,description,parent_id,is_active,created_at,updated_at").bind(id).bind(x.name.trim()).bind(x.slug.trim()).bind(x.description).bind(parent).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("category not found"))?;
+        let r=sqlx::query_as::<_,(uuid::Uuid,String,String,String,Option<uuid::Uuid>,bool,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>("UPDATE categories SET name=$2,slug=$3,description=$4,parent_id=$5,is_active=$6 WHERE id=$1 RETURNING id,name,slug,description,parent_id,is_active,created_at,updated_at").bind(id).bind(x.name.trim()).bind(x.slug.trim()).bind(x.description).bind(parent).bind(x.is_active).fetch_optional(&self.pool).await.map_err(errors::db)?.ok_or_else(||Status::not_found("category not found"))?;
         Ok(Response::new(CategoryResponse {
             category: Some(map(r)),
         }))
@@ -126,7 +126,7 @@ impl CategoryService for CategoryGrpc {
         let id = parse_uuid(&q.into_inner().id, "id")?;
         let mut tx = self.pool.begin().await.map_err(errors::db)?;
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM categories WHERE id=$1 AND deleted_at IS NULL)",
+            "SELECT EXISTS(SELECT 1 FROM categories WHERE id=$1)",
         )
         .bind(id)
         .fetch_one(&mut *tx)
@@ -135,13 +135,13 @@ impl CategoryService for CategoryGrpc {
         if !exists {
             return Err(Status::not_found("category not found"));
         }
-        let used:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM products WHERE category_id=$1) OR EXISTS(SELECT 1 FROM categories WHERE parent_id=$1 AND deleted_at IS NULL)").bind(id).fetch_one(&mut *tx).await.map_err(errors::db)?;
+        let used:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM products WHERE category_id=$1) OR EXISTS(SELECT 1 FROM categories WHERE parent_id=$1)").bind(id).fetch_one(&mut *tx).await.map_err(errors::db)?;
         if used {
             return Err(Status::failed_precondition(
                 "category has products or children",
             ));
         }
-        sqlx::query("UPDATE categories SET deleted_at=now() WHERE id=$1")
+        sqlx::query("DELETE FROM categories WHERE id=$1")
             .bind(id)
             .execute(&mut *tx)
             .await
